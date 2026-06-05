@@ -116,20 +116,9 @@
   </main>
 
   <footer>
-    <div>Data provided by <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> · 15-25 min delayed</div>
-    <div>ASX tickers use ".AX" suffix automatically</div>
+    <div>Data via Yahoo Finance · Proxied by corsproxy.io · 15-25 min delayed</div>
+    <div>ASX tickers use ".AX" suffix automatically · No API key required</div>
   </footer>
-
-  <!-- API KEY MODAL -->
-  <div class="modal-overlay" id="modal-overlay">
-    <div class="modal">
-      <div class="modal-title">ENTER YOUR API KEY</div>
-      <p>Get a free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> (takes 30 seconds)</p>
-      <input type="text" id="api-key-input" placeholder="Paste your free API key here..." />
-      <button id="save-key-btn">SAVE & CONTINUE</button>
-      <div class="modal-note">Your key is saved locally in your browser — never sent anywhere else.</div>
-    </div>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="app.js"></script>
