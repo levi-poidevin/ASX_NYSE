@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MarketPulse — US & ASX Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <div class="noise"></div>
+
+  <header>
+    <div class="logo">MARKET<span>PULSE</span></div>
+    <div class="market-status">
+      <span class="dot us-dot"></span><span id="us-status">NYSE/NASDAQ</span>
+      <span class="dot asx-dot"></span><span id="asx-status">ASX</span>
+    </div>
+    <div class="header-time" id="clock"></div>
+  </header>
+
+  <main>
+
+    <!-- SEARCH -->
+    <section class="search-section">
+      <div class="search-label">SEARCH ANY TICKER</div>
+      <div class="search-row">
+        <div class="market-toggle">
+          <button class="toggle-btn active" data-market="US">🇺🇸 US</button>
+          <button class="toggle-btn" data-market="ASX">🇦🇺 ASX</button>
+        </div>
+        <div class="search-box">
+          <input type="text" id="ticker-input" placeholder="e.g. AAPL, BHP, CBA..." autocomplete="off" />
+          <button id="search-btn">SEARCH</button>
+        </div>
+      </div>
+      <div class="quick-picks">
+        <span class="pick-label">Quick:</span>
+        <button class="quick-btn" data-sym="AAPL" data-mkt="US">AAPL</button>
+        <button class="quick-btn" data-sym="TSLA" data-mkt="US">TSLA</button>
+        <button class="quick-btn" data-sym="NVDA" data-mkt="US">NVDA</button>
+        <button class="quick-btn" data-sym="MSFT" data-mkt="US">MSFT</button>
+        <button class="quick-btn asx" data-sym="BHP" data-mkt="ASX">BHP</button>
+        <button class="quick-btn asx" data-sym="CBA" data-mkt="ASX">CBA</button>
+        <button class="quick-btn asx" data-sym="NAB" data-mkt="ASX">NAB</button>
+        <button class="quick-btn asx" data-sym="RIO" data-mkt="ASX">RIO</button>
+      </div>
+    </section>
+
+    <!-- RESULT CARD -->
+    <section class="result-section" id="result-section" style="display:none">
+      <div class="result-card" id="result-card">
+        <div class="result-header">
+          <div class="result-identity">
+            <div class="result-symbol" id="r-symbol">--</div>
+            <div class="result-market" id="r-market">--</div>
+          </div>
+          <div class="result-price-block">
+            <div class="result-price" id="r-price">--</div>
+            <div class="result-change" id="r-change">--</div>
+          </div>
+        </div>
+        <div class="result-stats">
+          <div class="stat"><div class="stat-label">OPEN</div><div class="stat-val" id="r-open">--</div></div>
+          <div class="stat"><div class="stat-label">HIGH</div><div class="stat-val" id="r-high">--</div></div>
+          <div class="stat"><div class="stat-label">LOW</div><div class="stat-val" id="r-low">--</div></div>
+          <div class="stat"><div class="stat-label">VOLUME</div><div class="stat-val" id="r-vol">--</div></div>
+          <div class="stat"><div class="stat-label">PREV CLOSE</div><div class="stat-val" id="r-prev">--</div></div>
+          <div class="stat"><div class="stat-label">LAST UPDATE</div><div class="stat-val" id="r-date">--</div></div>
+        </div>
+        <div class="chart-area">
+          <div class="chart-label">30-DAY PRICE HISTORY</div>
+          <canvas id="price-chart"></canvas>
+        </div>
+      </div>
+      <div id="error-msg" class="error-msg" style="display:none"></div>
+    </section>
+
+    <!-- INDEX OVERVIEW -->
+    <section class="indices-section">
+      <div class="section-title">MAJOR INDICES</div>
+      <div class="indices-grid" id="indices-grid">
+        <div class="index-card loading" data-sym="SPY" data-mkt="US" data-label="S&P 500">
+          <div class="idx-label">S&P 500</div>
+          <div class="idx-price">--</div>
+          <div class="idx-change">loading...</div>
+        </div>
+        <div class="index-card loading" data-sym="QQQ" data-mkt="US" data-label="NASDAQ">
+          <div class="idx-label">NASDAQ</div>
+          <div class="idx-price">--</div>
+          <div class="idx-change">loading...</div>
+        </div>
+        <div class="index-card loading" data-sym="DIA" data-mkt="US" data-label="DOW JONES">
+          <div class="idx-label">DOW JONES</div>
+          <div class="idx-price">--</div>
+          <div class="idx-change">loading...</div>
+        </div>
+        <div class="index-card loading asx-card" data-sym="IOZ" data-mkt="ASX" data-label="ASX 200 ETF">
+          <div class="idx-label">ASX 200</div>
+          <div class="idx-price">--</div>
+          <div class="idx-change">loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WATCHLIST -->
+    <section class="watchlist-section">
+      <div class="section-title">WATCHLIST <span class="watch-hint">— click any result to add</span></div>
+      <div id="watchlist-grid" class="watchlist-grid">
+        <div class="empty-watch">No stocks added yet. Search and they'll appear here.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div>Data provided by <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> · 15-25 min delayed</div>
+    <div>ASX tickers use ".AX" suffix automatically</div>
+  </footer>
+
+  <!-- API KEY MODAL -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">ENTER YOUR API KEY</div>
+      <p>Get a free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> (takes 30 seconds)</p>
+      <input type="text" id="api-key-input" placeholder="Paste your free API key here..." />
+      <button id="save-key-btn">SAVE & CONTINUE</button>
+      <div class="modal-note">Your key is saved locally in your browser — never sent anywhere else.</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
