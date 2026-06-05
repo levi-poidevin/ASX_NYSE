@@ -314,15 +314,22 @@ function drawCandlestick(timestamps, quotes, currency, range) {
     plugins: [crosshairPlugin]
   });
 
+  let rafId = null;
   canvas.onmousemove = e => {
     const rect = canvas.getBoundingClientRect();
     priceChart._crosshairX = e.clientX - rect.left;
     priceChart._crosshairY = e.clientY - rect.top;
-    priceChart.update('none');
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        priceChart.update('none');
+        rafId = null;
+      });
+    }
   };
   canvas.onmouseleave = () => {
     priceChart._crosshairX = null;
     priceChart._crosshairY = null;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     priceChart.update('none');
   };
 }
