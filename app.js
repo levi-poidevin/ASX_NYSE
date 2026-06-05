@@ -129,29 +129,38 @@ async function doSearch() {
 const PROXY_FNS = [
   url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ];
 
 async function fetchYahooData(symbol, range = '3mo') {
   const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
-  let lastErr = new Error('All data sources unavailable. Try again shortly.');
 
-  for (const buildProxy of PROXY_FNS) {
+  const tryProxy = async buildProxy => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
-      const res = await fetch(buildProxy(yahooUrl));
-      if (!res.ok) {
-        lastErr = new Error(`Request failed (HTTP ${res.status}). Try again shortly.`);
-        continue;
-      }
+      const res = await fetch(buildProxy(yahooUrl), { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (json.chart?.error) throw new Error(`Yahoo Finance: ${json.chart.error.description || 'Unknown error'}`);
       if (!json.chart?.result?.[0]) throw new Error(`Symbol "${symbol}" not found. Check the ticker is correct.`);
       return json.chart.result[0];
-    } catch (e) {
-      if (e.message.startsWith('Yahoo Finance:') || e.message.includes('not found')) throw e;
-      lastErr = e;
+    } finally {
+      clearTimeout(timer);
     }
+  };
+
+  try {
+    return await Promise.any(PROXY_FNS.map(tryProxy));
+  } catch (err) {
+    if (err instanceof AggregateError) {
+      const meaningful = err.errors.find(e =>
+        e.message.startsWith('Yahoo Finance:') || e.message.includes('not found')
+      );
+      throw meaningful ?? new Error('All data sources unavailable. Try again shortly.');
+    }
+    throw err;
   }
-  throw lastErr;
 }
 
 // ── DISPLAY RESULT ──
