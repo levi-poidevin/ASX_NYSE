@@ -5,12 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>MarketPulse — US & ASX Live</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-
-  <div class="noise"></div>
 
   <header>
     <div class="logo">MARKET<span>PULSE</span></div>
@@ -27,11 +25,11 @@
     <section class="search-section">
       <div class="search-label">SEARCH ANY TICKER</div>
       <div class="search-row">
-        <div class="market-toggle">
+        <div class="market-toggle glass-card">
           <button class="toggle-btn active" data-market="US">🇺🇸 US</button>
           <button class="toggle-btn" data-market="ASX">🇦🇺 ASX</button>
         </div>
-        <div class="search-box">
+        <div class="search-box glass-card">
           <input type="text" id="ticker-input" placeholder="e.g. AAPL, BHP, CBA..." autocomplete="off" />
           <button id="search-btn">SEARCH</button>
         </div>
@@ -51,7 +49,7 @@
 
     <!-- RESULT CARD -->
     <section class="result-section" id="result-section" style="display:none">
-      <div class="result-card" id="result-card">
+      <div class="result-card glass-card" id="result-card">
         <div class="result-header">
           <div class="result-identity">
             <div class="result-symbol" id="r-symbol">--</div>
@@ -71,10 +69,50 @@
           <div class="stat"><div class="stat-label">LAST UPDATE</div><div class="stat-val" id="r-date">--</div></div>
         </div>
         <div class="chart-area">
-          <div class="chart-label">30-DAY PRICE HISTORY</div>
+          <div class="chart-header">
+            <div class="chart-label">CANDLESTICK CHART</div>
+            <div class="range-selector" id="range-selector">
+              <button class="range-btn" data-range="5d">1W</button>
+              <button class="range-btn" data-range="1mo">1M</button>
+              <button class="range-btn active" data-range="3mo">3M</button>
+              <button class="range-btn" data-range="6mo">6M</button>
+              <button class="range-btn" data-range="1y">1Y</button>
+            </div>
+          </div>
           <canvas id="price-chart"></canvas>
         </div>
       </div>
+
+      <!-- DETAIL PANELS -->
+      <div class="detail-panels" id="detail-panels" style="display:none">
+        <div class="detail-panel glass-card">
+          <div class="detail-panel-title">KEY STATISTICS</div>
+          <div class="key-stats-grid">
+            <div class="key-stat">
+              <span class="key-stat-label">52W HIGH</span>
+              <span class="key-stat-val" id="r-52h">--</span>
+            </div>
+            <div class="key-stat">
+              <span class="key-stat-label">52W LOW</span>
+              <span class="key-stat-val" id="r-52l">--</span>
+            </div>
+            <div class="key-stat">
+              <span class="key-stat-label">MARKET CAP</span>
+              <span class="key-stat-val" id="r-mcap">--</span>
+            </div>
+          </div>
+          <div class="range-bar-wrap">
+            <div class="range-bar-label-row">
+              <span class="range-bar-label">DAY RANGE</span>
+              <span class="range-bar-vals" id="r-range-vals">-- — --</span>
+            </div>
+            <div class="range-bar-track">
+              <div class="range-bar-dot" id="r-range-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="error-msg" class="error-msg" style="display:none"></div>
     </section>
 
@@ -82,22 +120,22 @@
     <section class="indices-section">
       <div class="section-title">MAJOR INDICES</div>
       <div class="indices-grid" id="indices-grid">
-        <div class="index-card loading" data-sym="SPY" data-mkt="US" data-label="S&P 500">
-          <div class="idx-label">S&P 500</div>
+        <div class="index-card glass-card loading" data-sym="SPY" data-mkt="US" data-label="S&amp;P 500">
+          <div class="idx-label">S&amp;P 500</div>
           <div class="idx-price">--</div>
           <div class="idx-change">loading...</div>
         </div>
-        <div class="index-card loading" data-sym="QQQ" data-mkt="US" data-label="NASDAQ">
+        <div class="index-card glass-card loading" data-sym="QQQ" data-mkt="US" data-label="NASDAQ">
           <div class="idx-label">NASDAQ</div>
           <div class="idx-price">--</div>
           <div class="idx-change">loading...</div>
         </div>
-        <div class="index-card loading" data-sym="DIA" data-mkt="US" data-label="DOW JONES">
+        <div class="index-card glass-card loading" data-sym="DIA" data-mkt="US" data-label="DOW JONES">
           <div class="idx-label">DOW JONES</div>
           <div class="idx-price">--</div>
           <div class="idx-change">loading...</div>
         </div>
-        <div class="index-card loading asx-card" data-sym="IOZ" data-mkt="ASX" data-label="ASX 200 ETF">
+        <div class="index-card glass-card loading asx-card" data-sym="IOZ" data-mkt="ASX" data-label="ASX 200 ETF">
           <div class="idx-label">ASX 200</div>
           <div class="idx-price">--</div>
           <div class="idx-change">loading...</div>
@@ -107,7 +145,7 @@
 
     <!-- WATCHLIST -->
     <section class="watchlist-section">
-      <div class="section-title">WATCHLIST <span class="watch-hint">— click any result to add</span></div>
+      <div class="section-title">WATCHLIST <span class="watch-hint">— searches auto-add here</span></div>
       <div id="watchlist-grid" class="watchlist-grid">
         <div class="empty-watch">No stocks added yet. Search and they'll appear here.</div>
       </div>
@@ -121,6 +159,8 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

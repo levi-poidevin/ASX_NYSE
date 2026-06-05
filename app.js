@@ -1,9 +1,32 @@
 // ── MarketPulse App ──
-// Uses Yahoo Finance unofficial API via corsproxy.io (no API key required)
+// Yahoo Finance via corsproxy.io — no API key required
 
 let activeMarket = 'US';
 let priceChart = null;
 let watchlist = JSON.parse(localStorage.getItem('watchlist') || '[]');
+let currentSearch = { displaySym: null, fullSym: null, market: null };
+
+// ── CROSSHAIR PLUGIN ──
+const crosshairPlugin = {
+  id: 'crosshair',
+  afterDraw(chart) {
+    if (chart._crosshairX == null) return;
+    const { ctx, chartArea } = chart;
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(0,212,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(chart._crosshairX, chartArea.top);
+    ctx.lineTo(chart._crosshairX, chartArea.bottom);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, chart._crosshairY);
+    ctx.lineTo(chartArea.right, chart._crosshairY);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
@@ -60,6 +83,22 @@ function bindEvents() {
       doSearch();
     });
   });
+
+  // Range selector
+  document.getElementById('range-selector').addEventListener('click', async e => {
+    const btn = e.target.closest('.range-btn');
+    if (!btn || !currentSearch.fullSym) return;
+    document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const range = btn.dataset.range;
+    try {
+      const result = await fetchYahooData(currentSearch.fullSym, range);
+      const currency = currentSearch.market === 'ASX' ? 'A$' : '$';
+      drawCandlestick(result.timestamp, result.indicators.quote[0], currency, range);
+    } catch (err) {
+      showError(err.message);
+    }
+  });
 }
 
 // ── SEARCH ──
@@ -73,8 +112,12 @@ async function doSearch() {
   document.getElementById('result-section').style.display = 'block';
   document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.range-btn[data-range="3mo"]').classList.add('active');
+
   try {
-    const result = await fetchYahooData(symbol);
+    const result = await fetchYahooData(symbol, '3mo');
+    currentSearch = { displaySym: raw, fullSym: symbol, market: activeMarket };
     displayResult(raw, symbol, activeMarket, result);
     addToWatchlist(raw, symbol, activeMarket, result);
   } catch (err) {
@@ -88,9 +131,8 @@ const PROXY_FNS = [
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 ];
 
-async function fetchYahooData(symbol) {
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=3mo`;
-
+async function fetchYahooData(symbol, range = '3mo') {
+  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
   let lastErr = new Error('All data sources unavailable. Try again shortly.');
 
   for (const buildProxy of PROXY_FNS) {
@@ -101,12 +143,8 @@ async function fetchYahooData(symbol) {
         continue;
       }
       const json = await res.json();
-      if (json.chart?.error) {
-        throw new Error(`Yahoo Finance: ${json.chart.error.description || 'Unknown error'}`);
-      }
-      if (!json.chart?.result?.[0]) {
-        throw new Error(`Symbol "${symbol}" not found. Check the ticker is correct.`);
-      }
+      if (json.chart?.error) throw new Error(`Yahoo Finance: ${json.chart.error.description || 'Unknown error'}`);
+      if (!json.chart?.result?.[0]) throw new Error(`Symbol "${symbol}" not found. Check the ticker is correct.`);
       return json.chart.result[0];
     } catch (e) {
       if (e.message.startsWith('Yahoo Finance:') || e.message.includes('not found')) throw e;
@@ -120,6 +158,7 @@ async function fetchYahooData(symbol) {
 function displayResult(displaySym, fullSym, market, result) {
   document.getElementById('error-msg').style.display = 'none';
   document.getElementById('result-card').style.display = 'block';
+  document.getElementById('detail-panels').style.display = 'grid';
 
   const meta = result.meta;
   const quotes = result.indicators.quote[0];
@@ -148,8 +187,8 @@ function displayResult(displaySym, fullSym, market, result) {
 
   document.getElementById('r-open').textContent = open != null ? `${currency}${open.toFixed(2)}` : '—';
   document.getElementById('r-high').textContent = high != null ? `${currency}${high.toFixed(2)}` : '—';
-  document.getElementById('r-low').textContent = low != null ? `${currency}${low.toFixed(2)}` : '—';
-  document.getElementById('r-vol').textContent = volume != null ? formatVolume(volume) : '—';
+  document.getElementById('r-low').textContent  = low  != null ? `${currency}${low.toFixed(2)}`  : '—';
+  document.getElementById('r-vol').textContent  = volume != null ? formatVolume(volume) : '—';
   document.getElementById('r-prev').textContent = `${currency}${prevClose.toFixed(2)}`;
 
   const lastTs = timestamps[timestamps.length - 1];
@@ -157,79 +196,126 @@ function displayResult(displaySym, fullSym, market, result) {
     timeZone: 'Australia/Sydney', day: '2-digit', month: 'short', year: 'numeric'
   });
 
-  drawChart(timestamps, quotes.close, currency, isUp);
+  // 52-week + market cap
+  const w52h = meta.fiftyTwoWeekHigh;
+  const w52l = meta.fiftyTwoWeekLow;
+  document.getElementById('r-52h').textContent = w52h != null ? `${currency}${w52h.toFixed(2)}` : '—';
+  document.getElementById('r-52l').textContent = w52l != null ? `${currency}${w52l.toFixed(2)}` : '—';
+  document.getElementById('r-mcap').textContent = meta.marketCap != null ? formatVolume(meta.marketCap) : '—';
+
+  // Day range progress bar
+  if (low != null && high != null && high > low) {
+    const pct = Math.max(0, Math.min(100, ((close - low) / (high - low)) * 100));
+    document.getElementById('r-range-dot').style.left = `${pct}%`;
+    document.getElementById('r-range-vals').textContent =
+      `${currency}${low.toFixed(2)} — ${currency}${high.toFixed(2)}`;
+  }
+
+  drawCandlestick(timestamps, quotes, currency, '3mo');
 }
 
-// ── CHART ──
-function drawChart(timestamps, closes, currency, isUp) {
-  const pairs = timestamps
-    .map((ts, i) => ({ ts, price: closes[i] }))
-    .filter(p => p.price != null)
-    .slice(-30);
-
-  const labels = pairs.map(p => {
-    const d = new Date(p.ts * 1000);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
-  });
-  const prices = pairs.map(p => p.price);
+// ── CANDLESTICK CHART ──
+function drawCandlestick(timestamps, quotes, currency, range) {
+  const candles = timestamps
+    .map((ts, i) => ({
+      x: ts * 1000,
+      o: quotes.open[i],
+      h: quotes.high[i],
+      l: quotes.low[i],
+      c: quotes.close[i]
+    }))
+    .filter(c => c.o != null && c.h != null && c.l != null && c.c != null);
 
   if (priceChart) priceChart.destroy();
 
-  const ctx = document.getElementById('price-chart').getContext('2d');
-  const color = isUp ? '#2ed573' : '#ff4757';
-
-  const gradient = ctx.createLinearGradient(0, 0, 0, 180);
-  gradient.addColorStop(0, color + '33');
-  gradient.addColorStop(1, color + '00');
+  const canvas = document.getElementById('price-chart');
+  const ctx = canvas.getContext('2d');
+  const timeUnit = range === '5d' ? 'day' : range === '1mo' ? 'week' : 'month';
 
   priceChart = new Chart(ctx, {
-    type: 'line',
+    type: 'candlestick',
     data: {
-      labels,
       datasets: [{
-        data: prices,
-        borderColor: color,
-        backgroundColor: gradient,
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        pointHoverBackgroundColor: color,
-        fill: true,
-        tension: 0.3
+        label: 'OHLC',
+        data: candles,
+        color: {
+          up: '#00d4ff',
+          down: '#ff4757',
+          unchanged: 'rgba(255,255,255,0.4)'
+        }
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
+      animation: { duration: 300 },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1a24',
-          borderColor: 'rgba(255,255,255,0.1)',
+          mode: 'index',
+          intersect: false,
+          backgroundColor: 'rgba(8,18,38,0.96)',
+          borderColor: 'rgba(0,212,255,0.3)',
           borderWidth: 1,
-          titleColor: '#6b6b80',
-          bodyColor: '#f0f0f5',
-          callbacks: { label: c => `${currency}${c.parsed.y.toFixed(2)}` }
+          titleColor: 'rgba(255,255,255,0.45)',
+          bodyColor: '#ffffff',
+          padding: 12,
+          callbacks: {
+            title: items => {
+              if (!items[0]) return '';
+              return new Date(items[0].parsed.x).toLocaleDateString('en-AU', {
+                day: '2-digit', month: 'short', year: 'numeric'
+              });
+            },
+            label: item => {
+              const d = item.raw;
+              if (!d) return '';
+              return [
+                `O  ${currency}${d.o.toFixed(2)}`,
+                `H  ${currency}${d.h.toFixed(2)}`,
+                `L  ${currency}${d.l.toFixed(2)}`,
+                `C  ${currency}${d.c.toFixed(2)}`
+              ];
+            }
+          }
         }
       },
       scales: {
         x: {
+          type: 'time',
+          time: { unit: timeUnit },
           grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: '#6b6b80', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8 }
+          ticks: {
+            color: 'rgba(255,255,255,0.32)',
+            font: { family: 'JetBrains Mono', size: 10 },
+            maxTicksLimit: 8
+          }
         },
         y: {
           position: 'right',
           grid: { color: 'rgba(255,255,255,0.04)' },
           ticks: {
-            color: '#6b6b80',
-            font: { family: 'DM Mono', size: 10 },
+            color: 'rgba(255,255,255,0.32)',
+            font: { family: 'JetBrains Mono', size: 10 },
             callback: v => `${currency}${v.toFixed(0)}`
           }
         }
       }
-    }
+    },
+    plugins: [crosshairPlugin]
   });
+
+  canvas.onmousemove = e => {
+    const rect = canvas.getBoundingClientRect();
+    priceChart._crosshairX = e.clientX - rect.left;
+    priceChart._crosshairY = e.clientY - rect.top;
+    priceChart.update('none');
+  };
+  canvas.onmouseleave = () => {
+    priceChart._crosshairX = null;
+    priceChart._crosshairY = null;
+    priceChart.update('none');
+  };
 }
 
 // ── INDICES ──
@@ -269,11 +355,29 @@ function addToWatchlist(displaySym, fullSym, market, result) {
   const close = meta.regularMarketPrice;
   const prevClose = meta.previousClose ?? meta.chartPreviousClose;
   const pct = ((close - prevClose) / prevClose) * 100;
+  const sparkPrices = (result.indicators.quote[0].close || []).filter(v => v != null).slice(-10);
 
-  watchlist.unshift({ sym: displaySym, fullSym, market, close, pct });
+  watchlist.unshift({ sym: displaySym, fullSym, market, close, pct, sparkPrices });
   if (watchlist.length > 12) watchlist.pop();
   localStorage.setItem('watchlist', JSON.stringify(watchlist));
   renderWatchlist();
+}
+
+function sparklineSVG(prices, isUp) {
+  if (!prices || prices.length < 2) return '';
+  const W = 80, H = 28;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const span = max - min || 1;
+  const pts = prices.map((p, i) => {
+    const x = (i / (prices.length - 1)) * W;
+    const y = H - 2 - ((p - min) / span) * (H - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const color = isUp ? '#00d4ff' : '#ff4757';
+  return `<svg class="watch-spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+    `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>` +
+    `</svg>`;
 }
 
 function renderWatchlist() {
@@ -292,9 +396,9 @@ function renderWatchlist() {
         <div class="watch-sym">${item.sym}</div>
         <div class="watch-price">${currency}${item.close.toFixed(2)}</div>
         <div class="watch-chg ${isUp ? 'up' : 'down'}">${sign}${item.pct.toFixed(2)}%</div>
+        ${sparklineSVG(item.sparkPrices, isUp)}
         <button class="watch-remove" data-sym="${item.sym}" title="Remove">✕</button>
-      </div>
-    `;
+      </div>`;
   }).join('');
 
   grid.querySelectorAll('.watch-remove').forEach(btn => {
@@ -311,18 +415,21 @@ function renderWatchlist() {
 function showResultLoading(sym, market) {
   document.getElementById('error-msg').style.display = 'none';
   document.getElementById('result-card').style.display = 'block';
+  document.getElementById('detail-panels').style.display = 'none';
   document.getElementById('r-symbol').textContent = sym;
   document.getElementById('r-market').textContent = market === 'ASX' ? '🇦🇺 ASX' : '🇺🇸 US';
   document.getElementById('r-price').innerHTML = '<span class="spinner"></span>';
   document.getElementById('r-change').textContent = 'fetching...';
   document.getElementById('r-change').className = 'result-change';
-  ['r-open', 'r-high', 'r-low', 'r-vol', 'r-prev', 'r-date'].forEach(id => {
-    document.getElementById(id).textContent = '—';
+  ['r-open','r-high','r-low','r-vol','r-prev','r-date','r-52h','r-52l','r-mcap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
   });
 }
 
 function showError(msg) {
   document.getElementById('result-card').style.display = 'none';
+  document.getElementById('detail-panels').style.display = 'none';
   const el = document.getElementById('error-msg');
   el.textContent = '⚠ ' + msg;
   el.style.display = 'block';
@@ -330,8 +437,9 @@ function showError(msg) {
 
 // ── UTILS ──
 function formatVolume(n) {
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(2)  + 'B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(2)  + 'M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(1)  + 'K';
   return n.toString();
 }
